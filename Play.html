@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clover House Arcade</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#122e29;color:#fff0cd;font:18px "DM Sans",system-ui,sans-serif}main{max-width:850px;margin:5vh auto;padding:20px}header,nav,.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}header{justify-content:space-between;border-bottom:1px solid #718978}h1,h2{font-family:Georgia,serif;font-weight:500}h1{font-size:clamp(32px,6vw,58px);margin:12px 0}h2{font-size:35px;margin:0}output{color:#ffda87;font-weight:bold}nav{margin:20px 0}button{font:inherit;cursor:pointer;background:#b7dcc3;color:#18392f;border:0;border-radius:8px;padding:10px 16px}button:hover{filter:brightness(1.12)}button[aria-pressed=true]{background:#ffda87}section{background:#21483c;border:1px solid #557862;border-radius:20px;padding:clamp(16px,4vw,34px)}#grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-width:440px;margin:20px 0}#grid button{padding:6px;background:#325c49;font-size:clamp(20px,5vw,34px)}.cards{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 20px}.card{background:#fff3d8;color:#25382f;padding:12px;border-radius:8px;min-width:54px;text-align:center;font:bold 26px Georgia}.red{color:#a53434}canvas{display:block;width:min(100%,350px);height:auto;margin:8px auto}p{line-height:1.45}button:focus-visible{outline:3px solid white;outline-offset:2px}
+</style></head><body><main><header><h1>♧ Clover House</h1><output id="points">0 pts</output></header>
+<nav aria-label="Minigames"><button data-page="orchard" aria-pressed="true">Orchard</button><button data-page="cards">Twenty One</button><button data-page="wheel">Color Wheel</button></nav>
+<section id="orchard"><h2>Orchard</h2><p>Feed the bird a group of three or more matching fruits touching horizontally or vertically.</p><div id="grid"></div><div class="actions"><button id="shuffle">Shuffle fruit</button><span id="harvest"></span></div><p id="fruitNote" role="status"></p></section>
+<section id="cards" hidden><h2>Twenty One</h2><p>Beat the dealer without going over 21. The dealer stands on 17.</p><strong id="dealerLabel"></strong><div id="dealerHand" class="cards"></div><strong id="playerLabel"></strong><div id="playerHand" class="cards"></div><div class="actions"><button id="hit">Hit</button><button id="stand">Stand</button><button id="deal">New hand</button></div><p role="status" id="cardNote"></p></section>
+<section id="wheel" hidden><h2>Color Wheel</h2><p>Stop the wheel when the target color reaches the gold pointer.</p><canvas width="390" height="390" id="disc" aria-label="Numbered color wheel"></canvas><button id="spin">Start wheel</button> <span role="status" id="wheelNote"></span></section></main>
+<script>
+const el = id => document.getElementById(id);
+let score = 0;
+function award(points) {
+  score += points;
+  el("points").textContent = score + " pts";
+}
+document.querySelectorAll("nav button").forEach(button => button.onclick = () => {
+  document.querySelectorAll("section").forEach(s => s.hidden = s.id !== button.dataset.page);
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-pressed", b === button));
+  if (button.dataset.page === "cards" && !player.length) deal();
+});
+const fruits = ["🍎","🍋","🍇","🍐"];
+const fruit = () => fruits[Math.floor(Math.random()*4)];
+let board, progress, bird;
+function showFruit() {
+  el("grid").replaceChildren(...board.map((value,i) => {
+    const tile = document.createElement("button");
+    tile.textContent = value;
+    if (i === bird) tile.style.boxShadow = "inset 0 0 0 2px #ffda87";
+    tile.onclick = () => eat(i);
+    return tile;
+  }));
+  el("harvest").textContent = "Harvest bonus · " + progress + " / 10";
+}
+function eat(i) {
+  const group = new Set([i]);
+  for (const pos of group) {
+    for (const near of [pos-6,pos+6,pos-1,pos+1]) {
+      if (Math.abs(pos%6-near%6)<=1 && board[near]===board[i]) group.add(near);
+    }
+  }
+  if (group.size < 3) {
+    el("fruitNote").textContent = "Look for a larger group.";
+    return;
+  }
+  progress += group.size;
+  const bonus = Math.floor(progress/10)*10;
+  progress %= 10;
+  award(group.size+bonus);
+  bird = i;
+  for (const pos of group) board[pos] = fruit();
+  el("fruitNote").textContent = "🐦 Ate " + group.size + " fruits!" + (bonus ? " Harvest bonus +" + bonus : "");
+  showFruit();
+}
+function shuffle() {
+  board = Array.from({length:30},fruit);
+  progress = 0;
+  bird = -1;
+  el("fruitNote").textContent = "";
+  showFruit();
+}
+el("shuffle").onclick = shuffle;
+shuffle();
+
+let deck, player = [], dealer, done;
+function total(hand) {
+  const sum = hand.reduce((n,c) => n+Math.min(c.rank,10),0);
+  return sum+(sum<=11 && hand.some(c => c.rank===1) ? 10 : 0);
+}
+function showCards() {
+  for (const [id, hand] of [["player",player],["dealer",dealer]]) {
+    const masked = id==="dealer" && !done;
+    el(id+"Label").textContent = (masked ? "Dealer" : (id==="player" ? "You" : "Dealer")+" · "+total(hand));
+    el(id+"Hand").replaceChildren(...hand.map((c,i) => {
+      const tile = document.createElement("span");
+      tile.className = "card"+(!masked || i!==1 ? ("♥♦".includes(c.suit) ? " red" : "") : "");
+      tile.textContent = masked && i===1 ? "♧" : ("A23456789TJQK"[c.rank-1].replace("T","10")+c.suit);
+      return tile;
+    }));
+  }
+  el("hit").hidden = el("stand").hidden = done;
+  el("deal").hidden = !done;
+}
+function finish() {
+  while(total(player)<=21 && total(dealer)<17) dealer.push(deck.pop());
+  done = true;
+  const p = total(player), d = total(dealer);
+  const win = p<=21 && (d>21 || p>d);
+  if (win) award(5);
+  el("cardNote").textContent = win ? "You win! +5 points" : p>21 ? "Bust!" : p===d ? "Push! A tie." : "Dealer wins.";
+  showCards();
+}
+function deal() {
+  deck = Array.from({length:52},(_,i)=>({rank:i%13+1,suit:"♠♥♦♣"[Math.floor(i/13)]}));
+  for(let i=51;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]]=[deck[j],deck[i]];
+  }
+  player=[deck.pop(),deck.pop()];
+  dealer=[deck.pop(),deck.pop()];
+  done=false;
+  el("cardNote").textContent="";
+  if(total(player)===21 || total(dealer)===21) finish();
+  else showCards();
+}
+el("deal").onclick=deal;
+el("stand").onclick=finish;
+el("hit").onclick=()=>{player.push(deck.pop()); if(total(player)>=21) finish(); else showCards();};
+
+const numbers=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+const ctx=el("disc").getContext("2d"), tau=Math.PI*2, step=tau/37;
+let angle=0, frame=0, lastTime, target;
+function drawWheel() {
+  ctx.clearRect(0,0,390,390);
+  ctx.save();
+  ctx.translate(195,195);
+  ctx.rotate(angle-Math.PI/2);
+  for(let i=0;i<37;i++) {
+    ctx.fillStyle=i===0?"#38875a":i%2?"#b85346":"#172e2a";
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,175,0,step); ctx.fill();
+    ctx.save(); ctx.rotate(step/2); ctx.fillStyle="#fff3d8";
+    ctx.font="bold 14px system-ui"; ctx.textAlign="center"; ctx.fillText(numbers[i],153,5); ctx.restore();
+    ctx.rotate(step);
+  }
+  ctx.restore();
+  ctx.fillStyle="#ffda87"; ctx.beginPath(); ctx.arc(195,195,45,0,tau); ctx.fill();
+  ctx.fillStyle="#21483c"; ctx.textAlign="center"; ctx.font="44px Georgia"; ctx.fillText("♧",195,210);
+  ctx.fillStyle="#ffda87"; ctx.beginPath(); ctx.moveTo(184,10); ctx.lineTo(206,10); ctx.lineTo(195,35); ctx.fill();
+}
+function tick(time) {
+  angle=(angle+Math.max(0,time-lastTime)*0.0016)%tau;
+  lastTime=time;
+  drawWheel();
+  frame=requestAnimationFrame(tick);
+}
+el("spin").onclick=()=>{
+  if(frame) {
+    cancelAnimationFrame(frame);
+    frame=0;
+    const i=Math.floor((tau-angle)%tau/step);
+    const color=i===0?"Green":i%2?"Red":"Black";
+    if(color===target) award(3);
+    el("wheelNote").textContent=numbers[i]+" · "+color+(target===color?" · On target! +3":" · Try again!");
+    el("spin").textContent="Start wheel";
+  } else {
+    target=Math.random()<0.5?"Red":"Black";
+    el("wheelNote").textContent="Target · "+target;
+    el("spin").textContent="Stop wheel";
+    lastTime=performance.now();
+    frame=requestAnimationFrame(tick);
+  }
+};
+drawWheel();
+</script></body></html>
