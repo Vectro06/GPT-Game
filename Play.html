@@ -2,11 +2,28 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clover House Arcade</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#122e29;color:#fff0cd;font:18px "DM Sans",system-ui,sans-serif}main{max-width:850px;margin:5vh auto;padding:20px}header,nav,.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}header{justify-content:space-between;border-bottom:1px solid #718978}h1,h2{font-family:Georgia,serif;font-weight:500}h1{font-size:clamp(32px,6vw,58px);margin:12px 0}h2{font-size:35px;margin:0}output{color:#ffda87;font-weight:bold}nav{margin:20px 0}button{font:inherit;cursor:pointer;background:#b7dcc3;color:#18392f;border:0;border-radius:8px;padding:10px 16px}button:hover{filter:brightness(1.12)}button[aria-pressed=true]{background:#ffda87}section{background:#21483c;border:1px solid #557862;border-radius:20px;padding:clamp(16px,4vw,34px)}#grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-width:440px;margin:20px 0}#grid button{padding:6px;background:#325c49;font-size:clamp(20px,5vw,34px)}.cards{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 20px}.card{background:#fff3d8;color:#25382f;padding:12px;border-radius:8px;min-width:54px;text-align:center;font:bold 26px Georgia}.red{color:#a53434}canvas{display:block;width:min(100%,350px);height:auto;margin:8px auto}p{line-height:1.45}button:focus-visible{outline:3px solid white;outline-offset:2px}
+
+body{background:radial-gradient(ellipse at top,#254739,#0c211e 70%);min-height:100vh}
+#grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;padding:5px;overflow:hidden;border:4px solid #886846;border-radius:14px;background:repeating-linear-gradient(90deg,#14392f 0 16.5%,#21483c 16.5% 16.67%);box-shadow:inset 0 6px 15px #0c2825}
+.tile{display:grid;place-items:center;position:relative;aspect-ratio:1;font-size:clamp(23px,5vw,40px)}
+.bird{background:var(--plumage);border-radius:48% 48% 36% 40%;margin:9%;aspect-ratio:auto;color:#16261c;font: bold clamp(19px,4vw,33px) Georgia;box-shadow:inset -4px -6px 0 #0002}
+.bird:before{content:'◆';position:absolute;color:#ffd17e;font-size:.5em;right:-.45em}
+.drop{animation:fall .45s cubic-bezier(.35,0,.8,1.12) both}
+@keyframes fall{from{transform:translateY(var(--from))}to{transform:translateY(0)}}
+.eaten{animation:pop .29s ease-in forwards}@keyframes pop{50%{transform:scale(1.15)}to{opacity:0;transform:scale(.3)}}
+.card{display:grid;place-items:center;height:84px;box-shadow:0 4px 8px #102a2390;animation:deal .28s ease-out both}.card.back{background:repeating-linear-gradient(45deg,#376852 0 6px,#47785d 6px 8px);border:3px solid #e4d2a3;color:#fff3d8}
+@keyframes deal{from{opacity:0;transform:translate(22px,-18px) rotate(8deg)}}
+#wheelLayout{display:flex;align-items:center;flex-wrap:wrap;gap:20px}#disc{flex:1 1 210px;min-width:0;max-width:350px}
+#board{flex:1 1 210px;border:1px solid #cfb67a;padding:8px;border-radius:9px;background:#184632;min-width:0}
+.pockets,.groups{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}.zeros{display:flex;gap:2px}.zeros button{flex:1}.groups{margin-top:6px}
+#board button{border:1px solid #aac2a1;border-radius:3px;background:#2c624a;color:white;padding:3px;font-size:14px;min-height:25px}#board .ruby{background:#ae473e}#board .dark{background:#222d2a}#board [aria-pressed=true]{outline:3px solid #ffdf83;outline-offset:-3px}
+button:disabled{cursor:default;opacity:.65}
+@media(prefers-reduced-motion:reduce){.drop,.card,.eaten{animation-duration:.01s}}
 </style></head><body><main><header><h1>♧ Clover House</h1><output id="points">0 pts</output></header>
 <nav aria-label="Minigames"><button data-page="orchard" aria-pressed="true">Orchard</button><button data-page="cards">Twenty One</button><button data-page="wheel">Color Wheel</button></nav>
-<section id="orchard"><h2>Orchard</h2><p>Feed the bird a group of three or more matching fruits touching horizontally or vertically.</p><div id="grid"></div><div class="actions"><button id="shuffle">Shuffle fruit</button><span id="harvest"></span></div><p id="fruitNote" role="status"></p></section>
+<section id="orchard"><h2>Orchard</h2><p>Drop a new orchard. Each bird eats its largest touching patch of matching fruit. Each fruit earns 0.5 points, plus 0.5 for every fruit after the first in a patch.</p><div id="grid"></div><div class="actions"><button id="shuffle">Drop orchard</button><span id="harvest"></span></div><p id="fruitNote" role="status"></p></section>
 <section id="cards" hidden><h2>Twenty One</h2><p>Beat the dealer without going over 21. The dealer stands on 17.</p><strong id="dealerLabel"></strong><div id="dealerHand" class="cards"></div><strong id="playerLabel"></strong><div id="playerHand" class="cards"></div><div class="actions"><button id="hit">Hit</button><button id="stand">Stand</button><button id="deal">New hand</button></div><p role="status" id="cardNote"></p></section>
-<section id="wheel" hidden><h2>Color Wheel</h2><p>Stop the wheel when the target color reaches the gold pointer.</p><canvas width="390" height="390" id="disc" aria-label="Numbered color wheel"></canvas><button id="spin">Start wheel</button> <span role="status" id="wheelNote"></span></section></main>
+<section id="wheel" hidden><h2>Color Wheel</h2><p>Pick a pocket or group, then spin. A correct prediction earns one point.</p><div id="wheelLayout"><canvas width="390" height="390" id="disc" aria-label="Numbered color wheel"></canvas><div id="board"></div></div><button id="spin">Start wheel</button> <span role="status" id="wheelNote"></span></section></main>
 <script>
 const el = id => document.getElementById(id);
 let score = 0;
@@ -20,47 +37,100 @@ document.querySelectorAll("nav button").forEach(button => button.onclick = () =>
   if (button.dataset.page === "cards" && !player.length) deal();
 });
 const fruits = ["🍎","🍋","🍇","🍐"];
-const fruit = () => fruits[Math.floor(Math.random()*4)];
-let board, progress, bird;
-function showFruit() {
+
+const colors = ["#ef8c83","#ecce70","#b99bda","#a6d87f"];
+const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
+const randomFruit = () => Math.floor(Math.random()*4);
+let board;
+function freshBoard() {
+  board = Array.from({length:30},randomFruit);
+  const places = Array.from(board.keys());
+  for(let color=0;color<4;color++) {
+    const [place] = places.splice(Math.floor(Math.random()*places.length),1);
+    board[place] = 4+color;
+  }
+}
+function paintBoard(distances = []) {
   el("grid").replaceChildren(...board.map((value,i) => {
-    const tile = document.createElement("button");
-    tile.textContent = value;
-    if (i === bird) tile.style.boxShadow = "inset 0 0 0 2px #ffda87";
-    tile.onclick = () => eat(i);
+    const tile = document.createElement("span");
+    const bird = value >= 4;
+    tile.className = bird ? "tile bird" : "tile";
+    tile.textContent = bird ? "•◡•" : fruits[value];
+    if(bird) {
+      tile.style.setProperty("--plumage",colors[value-4]);
+      tile.title = fruits[value-4]+" bird";
+    }
+    if(distances[i]) {
+      tile.classList.add("drop");
+      tile.style.setProperty("--from",(-distances[i]*(bird ? 122 : 100))+"%");
+    }
     return tile;
   }));
-  el("harvest").textContent = "Harvest bonus · " + progress + " / 10";
 }
-function eat(i) {
-  const group = new Set([i]);
-  for (const pos of group) {
-    for (const near of [pos-6,pos+6,pos-1,pos+1]) {
-      if (Math.abs(pos%6-near%6)<=1 && board[near]===board[i]) group.add(near);
+function neighbors(i) {
+  return [i-6,i+6,i-1,i+1].filter(n => n>=0 && n<30 && Math.abs(n%6-i%6)<=1);
+}
+function nextMeal() {
+  let best=[];
+  board.forEach((bird,i) => {
+    if(bird<4) return;
+    const seen=new Set();
+    for(const near of neighbors(i)) {
+      if(seen.has(near) || board[near]!==bird-4) continue;
+      const patch=new Set([near]);
+      for(const pos of patch) {
+        seen.add(pos);
+        for(const n of neighbors(pos)) if(board[n]===bird-4) patch.add(n);
+      }
+      if(patch.size>best.length) best=[...patch];
+    }
+  });
+  return best;
+}
+function collapse(meal) {
+  const holes=new Set(meal), distances=Array(30).fill(0);
+  for(let col=0;col<6;col++) {
+    let dest=24+col;
+    for(let src=dest;src>=0;src-=6) {
+      if(holes.has(src)) continue;
+      board[dest]=board[src];
+      distances[dest]=(dest-src)/6;
+      dest-=6;
+    }
+    const missing=Math.floor(dest/6)+1;
+    for(;dest>=0;dest-=6) {
+      board[dest]=randomFruit();
+      distances[dest]=missing;
     }
   }
-  if (group.size < 3) {
-    el("fruitNote").textContent = "Look for a larger group.";
-    return;
+  paintBoard(distances);
+}
+async function dropOrchard() {
+  el("shuffle").disabled=true;
+  freshBoard();
+  paintBoard(Array(30).fill(5));
+  let eaten=0, earned=0;
+  el("harvest").textContent="";
+  el("fruitNote").textContent="The orchard is falling…";
+  await sleep(470);
+  for(let meal=nextMeal();meal.length;meal=nextMeal()) {
+    el("fruitNote").textContent="Feeding on "+fruits[board[meal[0]]]+" × "+meal.length;
+    meal.forEach(i => el("grid").children[i].classList.add("eaten"));
+    await sleep(300);
+    const gain=meal.length-0.5;
+    earned+=gain;
+    eaten+=meal.length;
+    award(gain);
+    collapse(meal);
+    el("harvest").textContent=eaten+" fruits · +"+earned+" pts";
+    await sleep(470);
   }
-  progress += group.size;
-  const bonus = Math.floor(progress/10)*10;
-  progress %= 10;
-  award(group.size+bonus);
-  bird = i;
-  for (const pos of group) board[pos] = fruit();
-  el("fruitNote").textContent = "🐦 Ate " + group.size + " fruits!" + (bonus ? " Harvest bonus +" + bonus : "");
-  showFruit();
+  el("fruitNote").textContent=eaten ? "Harvest complete." : "No matching fruit within reach.";
+  el("shuffle").disabled=false;
 }
-function shuffle() {
-  board = Array.from({length:30},fruit);
-  progress = 0;
-  bird = -1;
-  el("fruitNote").textContent = "";
-  showFruit();
-}
-el("shuffle").onclick = shuffle;
-shuffle();
+el("shuffle").onclick=dropOrchard;
+freshBoard();
+paintBoard();
 
 let deck, player = [], dealer, done;
 function total(hand) {
@@ -71,19 +141,30 @@ function showCards() {
   for (const [id, hand] of [["player",player],["dealer",dealer]]) {
     const masked = id==="dealer" && !done;
     el(id+"Label").textContent = (masked ? "Dealer" : (id==="player" ? "You" : "Dealer")+" · "+total(hand));
-    el(id+"Hand").replaceChildren(...hand.map((c,i) => {
+    const row=el(id+"Hand");
+    hand.forEach((c,i) => {
       const tile = document.createElement("span");
       tile.className = "card"+(!masked || i!==1 ? ("♥♦".includes(c.suit) ? " red" : "") : "");
       tile.textContent = masked && i===1 ? "♧" : ("A23456789TJQK"[c.rank-1].replace("T","10")+c.suit);
-      return tile;
-    }));
+      if(masked && i===1) tile.classList.add("back");
+      const old=row.children[i];
+      if(!old) row.append(tile);
+      else if(old.textContent!==tile.textContent) old.replaceWith(tile);
+    });
   }
   el("hit").hidden = el("stand").hidden = done;
   el("deal").hidden = !done;
 }
-function finish() {
-  while(total(player)<=21 && total(dealer)<17) dealer.push(deck.pop());
+async function finish() {
   done = true;
+  showCards();
+  el("deal").disabled=true;
+  while(total(player)<=21 && !(player.length===2 && total(player)===21) && total(dealer)<17) {
+    await sleep(420);
+    dealer.push(deck.pop());
+    showCards();
+  }
+  el("deal").disabled=false;
   const p = total(player), d = total(dealer);
   const win = p<=21 && (d>21 || p>d);
   if (win) award(5);
@@ -91,6 +172,8 @@ function finish() {
   showCards();
 }
 function deal() {
+  el("dealerHand").replaceChildren();
+  el("playerHand").replaceChildren();
   deck = Array.from({length:52},(_,i)=>({rank:i%13+1,suit:"♠♥♦♣"[Math.floor(i/13)]}));
   for(let i=51;i>0;i--) {
     const j=Math.floor(Math.random()*(i+1));
@@ -107,16 +190,18 @@ el("deal").onclick=deal;
 el("stand").onclick=finish;
 el("hit").onclick=()=>{player.push(deck.pop()); if(total(player)>=21) finish(); else showCards();};
 
-const numbers=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
-const ctx=el("disc").getContext("2d"), tau=Math.PI*2, step=tau/37;
-let angle=0, frame=0, lastTime, target;
+const numbers=["0","28","9","26","30","11","7","20","32","17","5","22","34","15","3","24","36","13","1","00","27","10","25","29","12","8","19","31","18","6","21","33","16","4","23","35","14","2"];
+const reds=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+function tone(n) {return Number(n)===0 ? "green" : reds.has(Number(n)) ? "ruby" : "dark";}
+const ctx=el("disc").getContext("2d"), tau=Math.PI*2, step=tau/numbers.length;
+let angle=0, prediction=null;
 function drawWheel() {
   ctx.clearRect(0,0,390,390);
   ctx.save();
   ctx.translate(195,195);
   ctx.rotate(angle-Math.PI/2);
-  for(let i=0;i<37;i++) {
-    ctx.fillStyle=i===0?"#38875a":i%2?"#b85346":"#172e2a";
+  for(let i=0;i<numbers.length;i++) {
+    ctx.fillStyle=({green:"#38875a",ruby:"#b85346",dark:"#172e2a"})[tone(numbers[i])];
     ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,175,0,step); ctx.fill();
     ctx.save(); ctx.rotate(step/2); ctx.fillStyle="#fff3d8";
     ctx.font="bold 14px system-ui"; ctx.textAlign="center"; ctx.fillText(numbers[i],153,5); ctx.restore();
@@ -127,28 +212,56 @@ function drawWheel() {
   ctx.fillStyle="#21483c"; ctx.textAlign="center"; ctx.font="44px Georgia"; ctx.fillText("♧",195,210);
   ctx.fillStyle="#ffda87"; ctx.beginPath(); ctx.moveTo(184,10); ctx.lineTo(206,10); ctx.lineTo(195,35); ctx.fill();
 }
-function tick(time) {
-  angle=(angle+Math.max(0,time-lastTime)*0.0016)%tau;
-  lastTime=time;
-  drawWheel();
-  frame=requestAnimationFrame(tick);
+
+function boardRow(style) {
+  const row=document.createElement("div");
+  row.className=style;
+  el("board").append(row);
+  return row;
 }
+function choice(row,label,matches,style="") {
+  const btn=document.createElement("button");
+  btn.textContent=label;
+  btn.className=style;
+  btn.setAttribute("aria-pressed","false");
+  btn.onclick=()=>{
+    el("board").querySelector('[aria-pressed=true]')?.setAttribute("aria-pressed","false");
+    btn.setAttribute("aria-pressed","true");
+    prediction=matches;
+    el("wheelNote").textContent="Prediction · "+label;
+    el("spin").disabled=false;
+  };
+  row.append(btn);
+}
+const zeros=boardRow("zeros"), pockets=boardRow("pockets"), groups=boardRow("groups");
+for(const n of ["0","00",...Array.from({length:36},(_,i)=>String(i+1))])
+  choice(Number(n)===0?zeros:pockets,n,result=>result===n,tone(n));
+for(let i=0;i<3;i++) choice(groups,"Column "+(i+1),n=>Number(n)>0 && (Number(n)-1)%3===i);
+for(let i=0;i<3;i++) choice(groups,(12*i+1)+"–"+(12*i+12),n=>Number(n)>12*i && Number(n)<=12*i+12);
+for(const [label,test] of [["1–18",n=>n<=18],["Even",n=>n%2===0],["Red",n=>reds.has(n)],["Black",n=>!reds.has(n)],["Odd",n=>n%2===1],["19–36",n=>n>=19]])
+  choice(groups,label,n=>Number(n)>0 && test(Number(n)));
+el("spin").disabled=true;
 el("spin").onclick=()=>{
-  if(frame) {
-    cancelAnimationFrame(frame);
-    frame=0;
-    const i=Math.floor((tau-angle)%tau/step);
-    const color=i===0?"Green":i%2?"Red":"Black";
-    if(color===target) award(3);
-    el("wheelNote").textContent=numbers[i]+" · "+color+(target===color?" · On target! +3":" · Try again!");
-    el("spin").textContent="Start wheel";
-  } else {
-    target=Math.random()<0.5?"Red":"Black";
-    el("wheelNote").textContent="Target · "+target;
-    el("spin").textContent="Stop wheel";
-    lastTime=performance.now();
-    frame=requestAnimationFrame(tick);
+  const index=Math.floor(Math.random()*numbers.length);
+  const stop=(tau-(index+0.5)*step)%tau;
+  const start=angle, distance=4*tau+(stop-start+tau)%tau;
+  const began=performance.now();
+  el("spin").disabled=true;
+  el("board").inert=true;
+  function tick(time) {
+    const t=Math.min(1,(time-began)/3000);
+    angle=(start+distance*(1-(1-t)**3))%tau;
+    drawWheel();
+    if(t<1) requestAnimationFrame(tick);
+    else {
+      const result=numbers[index], correct=prediction(result);
+      if(correct) award(1);
+      el("wheelNote").textContent="Landed on "+result+(correct?" · Correct! +1 point":" · Miss");
+      el("board").inert=false;
+      el("spin").disabled=false;
+    }
   }
+  requestAnimationFrame(tick);
 };
 drawWheel();
 </script></body></html>
