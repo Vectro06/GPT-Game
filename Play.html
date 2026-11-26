@@ -19,9 +19,18 @@ body{background:radial-gradient(ellipse at top,#254739,#0c211e 70%);min-height:1
 #board button{border:1px solid #aac2a1;border-radius:3px;background:#2c624a;color:white;padding:3px;font-size:14px;min-height:25px}#board .ruby{background:#ae473e}#board .dark{background:#222d2a}#board [aria-pressed=true]{outline:3px solid #ffdf83;outline-offset:-3px}
 button:disabled{cursor:default;opacity:.65}
 @media(prefers-reduced-motion:reduce){.drop,.card,.eaten{animation-duration:.01s}}
+
+#orchard{background:radial-gradient(ellipse at 0 0,#3d6244,transparent 65%),#1d4035}
+#grid{margin-inline:auto;box-shadow:0 8px 28px #102c28,inset 0 4px 18px #0b291f}
+.bird{border-radius:52% 65% 50% 57%;background:radial-gradient(circle at 69% 29%,#253b33 4%,#fff8dc 5% 10%,transparent 11%),var(--plumage);font-size:0;z-index:1}
+.bird:before{content:"";right:-12%;top:38%;background:#ffd47b;width:22%;height:16%;clip-path:polygon(0 0,100% 45%,0 100%)}
+.bird:after{content:"";position:absolute;left:8%;top:35%;width:44%;height:35%;background:#0002;border-radius:20% 60% 85% 70%;transform:rotate(-18deg)}
+.bird small{position:absolute;bottom:-4%;right:0;font-size:clamp(14px,3vw,22px);z-index:2}
+.marked{background:radial-gradient(circle,#ffe19644,transparent 72%)}
+#scout{border:1px solid #b7ba76;border-radius:12px;margin:12px 0;padding:14px}#scout p{font-size:.88rem;margin:0 0 10px}#scout legend{color:#ffe19b;padding:0 6px}
 </style></head><body><main><header><h1>♧ Clover House</h1><output id="points">0 pts</output></header>
 <nav aria-label="Minigames"><button data-page="orchard" aria-pressed="true">Orchard</button><button data-page="cards">Twenty One</button><button data-page="wheel">Color Wheel</button></nav>
-<section id="orchard"><h2>Orchard</h2><p>Drop a new orchard. Each bird eats its largest touching patch of matching fruit. Each fruit earns 0.5 points, plus 0.5 for every fruit after the first in a patch.</p><div id="grid"></div><div class="actions"><button id="shuffle">Drop orchard</button><span id="harvest"></span></div><p id="fruitNote" role="status"></p></section>
+<section id="orchard"><h2>Orchard</h2><p>Follow each bird’s favorite fruit. Trails can turn corners, but a bird can only visit each fruit once. Spot the longest trail before the flock takes off.</p><div id="grid"></div><fieldset id="scout" hidden><legend>Which bird has the longest trail?</legend><p>Read the board. A correct pick earns 3 points. A miss costs 2, down to zero.</p><div class="actions" id="choices"></div></fieldset><div class="actions"><button id="shuffle">Drop orchard</button><span id="harvest"></span></div><p id="fruitNote" role="status"></p></section>
 <section id="cards" hidden><h2>Twenty One</h2><p>Beat the dealer without going over 21. The dealer stands on 17.</p><strong id="dealerLabel"></strong><div id="dealerHand" class="cards"></div><strong id="playerLabel"></strong><div id="playerHand" class="cards"></div><div class="actions"><button id="hit">Hit</button><button id="stand">Stand</button><button id="deal">New hand</button></div><p role="status" id="cardNote"></p></section>
 <section id="wheel" hidden><h2>Color Wheel</h2><p>Pick a pocket or group, then spin. A correct prediction earns one point.</p><div id="wheelLayout"><canvas width="390" height="390" id="disc" aria-label="Numbered color wheel"></canvas><div id="board"></div></div><button id="spin">Start wheel</button> <span role="status" id="wheelNote"></span></section></main>
 <script>
@@ -55,10 +64,13 @@ function paintBoard(distances = []) {
     const tile = document.createElement("span");
     const bird = value >= 4;
     tile.className = bird ? "tile bird" : "tile";
-    tile.textContent = bird ? "•◡•" : fruits[value];
+    tile.textContent = bird ? "●" : (fruits[value] || "");
     if(bird) {
       tile.style.setProperty("--plumage",colors[value-4]);
       tile.title = fruits[value-4]+" bird";
+      const favorite=document.createElement("small");
+      favorite.textContent=fruits[value-4];
+      tile.append(favorite);
     }
     if(distances[i]) {
       tile.classList.add("drop");
@@ -70,29 +82,86 @@ function paintBoard(distances = []) {
 function neighbors(i) {
   return [i-6,i+6,i-1,i+1].filter(n => n>=0 && n<30 && Math.abs(n%6-i%6)<=1);
 }
-function nextMeal() {
-  let best=[];
-  board.forEach((bird,i) => {
-    if(bird<4) return;
-    const seen=new Set();
-    for(const near of neighbors(i)) {
-      if(seen.has(near) || board[near]!==bird-4) continue;
-      const patch=new Set([near]);
-      for(const pos of patch) {
-        seen.add(pos);
-        for(const n of neighbors(pos)) if(board[n]===bird-4) patch.add(n);
+const adjacent=Array.from({length:30},(_,i)=>neighbors(i));
+function trails() {
+  const routes=[];
+  for(const [start,bird] of board.entries()) {
+    if(bird<4) continue;
+    const path=[], used=new Set();
+    let longest=[];
+    function walk(pos) {
+      if(path.length>longest.length) longest=path.slice();
+      for(const n of adjacent[pos]) {
+        if(board[n]!==bird-4 || used.has(n)) continue;
+        used.add(n);
+        path.push(n);
+        walk(n);
+        path.pop();
+        used.delete(n);
       }
-      if(patch.size>best.length) best=[...patch];
     }
-  });
-  return best;
+    walk(start);
+    routes.push({start,bird,path:longest});
+  }
+  return routes.sort((a,b)=>b.path.length-a.path.length);
 }
-function collapse(meal) {
-  const holes=new Set(meal), distances=Array(30).fill(0);
+
+function scout(routes) {
+  return new Promise(resolve=>{
+    const panel=el("scout"), choices=el("choices");
+    choices.replaceChildren();
+    function pick(route) {
+      panel.hidden=true;
+      if(!route) return resolve("");
+      const correct=route.path.length===routes[0].path.length;
+      const delta=correct ? 3 : -Math.min(2,score);
+      award(delta);
+      resolve(correct ? "Good eye! +3 pts." : "Longest trail: "+routes[0].path.length+". Score −"+Math.abs(delta)+".");
+    }
+    for(const route of [...routes].sort((a,b)=>a.bird-b.bird)) {
+      const button=document.createElement("button");
+      button.textContent=fruits[route.bird-4]+" bird";
+      button.onclick=()=>pick(route);
+      choices.append(button);
+    }
+    const skip=document.createElement("button");
+    skip.textContent="Just watch";
+    skip.onclick=()=>pick(null);
+    choices.append(skip);
+    panel.hidden=false;
+  });
+}
+async function followTrail(route) {
+  let pos=route.start;
+  const tiles=el("grid").children;
+  for(const n of route.path) tiles[n].classList.add("marked");
+  await sleep(230);
+  for(const [step,next] of route.path.entries()) {
+    const bird=tiles[pos], target=tiles[next];
+    const dx=(next%6-pos%6)*122, dy=(Math.floor(next/6)-Math.floor(pos/6))*122;
+    target.classList.add("eaten");
+    bird.classList.remove("drop");
+    const reduced=matchMedia("(prefers-reduced-motion:reduce)").matches;
+    if(!reduced) bird.animate([
+      {transform:"none"},
+      {transform:`translate(${dx/2}%,${dy/2-18}%) rotate(-6deg)`},
+      {transform:`translate(${dx}%,${dy}%)`}
+    ],{duration:230,fill:"forwards"});
+    await sleep(reduced ? 90 : 235);
+    board[pos]=-1;
+    board[next]=route.bird;
+    pos=next;
+    paintBoard();
+    for(const n of route.path.slice(step+1)) tiles[n].classList.add("marked");
+  }
+  await sleep(330);
+}
+function collapse() {
+  const distances=Array(30).fill(0);
   for(let col=0;col<6;col++) {
     let dest=24+col;
     for(let src=dest;src>=0;src-=6) {
-      if(holes.has(src)) continue;
+      if(board[src]===-1) continue;
       board[dest]=board[src];
       distances[dest]=(dest-src)/6;
       dest-=6;
@@ -113,19 +182,28 @@ async function dropOrchard() {
   el("harvest").textContent="";
   el("fruitNote").textContent="The orchard is falling…";
   await sleep(470);
-  for(let meal=nextMeal();meal.length;meal=nextMeal()) {
-    el("fruitNote").textContent="Feeding on "+fruits[board[meal[0]]]+" × "+meal.length;
-    meal.forEach(i => el("grid").children[i].classList.add("eaten"));
-    await sleep(300);
-    const gain=meal.length-0.5;
+  let routes=trails();
+  let verdict="";
+  if(routes[0].path.length && !routes.every(r=>r.path.length===routes[0].path.length)) {
+    el("fruitNote").textContent="Trace matching fruit up, down, left or right.";
+    verdict=await scout(routes);
+  }
+  let flights=0;
+  while(routes[0].path.length) {
+    const route=routes[0];
+    flights++;
+    el("fruitNote").textContent=verdict+" Flight "+flights+" · "+fruits[route.bird-4]+" × "+route.path.length;
+    await followTrail(route);
+    const gain=route.path.length-0.5;
     earned+=gain;
-    eaten+=meal.length;
+    eaten+=route.path.length;
     award(gain);
-    collapse(meal);
+    collapse();
     el("harvest").textContent=eaten+" fruits · +"+earned+" pts";
     await sleep(470);
+    routes=trails();
   }
-  el("fruitNote").textContent=eaten ? "Harvest complete." : "No matching fruit within reach.";
+  el("fruitNote").textContent=eaten ? (verdict+" Harvest complete · "+flights+" flights.") : "No matching fruit within reach.";
   el("shuffle").disabled=false;
 }
 el("shuffle").onclick=dropOrchard;
